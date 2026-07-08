@@ -29,7 +29,11 @@ x-api-env: &api-env
   MGREP_PORT: 55555
   REPOSITORY_FOLDER: /srv/ontoportal/data/repository
   REPORT_PATH: /srv/ontoportal/data/reports/ontologies_report.json
-  MGREP_DICTIONARY_FILE: /srv/ontoportal/data/mgrep
+  # Same file, two names: ontologies_api reads MGREP_DICTIONARY_FILE while
+  # ncbo_cron reads MGREP_DICT_PATH (its generator writes the dictionary
+  # there, on the volume shared with the mgrep service)
+  MGREP_DICTIONARY_FILE: /srv/ontoportal/data/mgrep/dictionary.txt
+  MGREP_DICT_PATH: /srv/ontoportal/data/mgrep/dictionary.txt
 
 x-api-depends: &api-depends
   redis:
@@ -126,6 +130,20 @@ services:
   mgrep:
     image: ontoportal/mgrep-ncbo:0.1
     restart: unless-stopped
+    # The image's run.sh serves a sample dictionary baked into the image;
+    # serve the one ncbo_cron generates on the shared volume instead (seeded
+    # from the sample on first boot, before any ontology is processed).
+    # mgrep only reads the file at startup: restart this service after
+    # regenerating the dictionary (provisioning does it).
+    command:
+      - /bin/sh
+      - -c
+      - |
+        [ -f /srv/ontoportal/data/mgrep/dictionary.txt ] || cp /srv/mgrep/dictionary.txt /srv/ontoportal/data/mgrep/dictionary.txt
+        mgrep --port 55555 -f /srv/ontoportal/data/mgrep/dictionary.txt -w /srv/mgrep/word_divider.txt -c /srv/mgrep/CaseFolding.txt
+        while true; do sleep 1000; done
+    volumes:
+      - mgrep_dictionary:/srv/ontoportal/data/mgrep
 
   virtuoso:
     image: tenforce/virtuoso:virtuoso7.2.5

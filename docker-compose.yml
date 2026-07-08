@@ -42,14 +42,45 @@ x-api-depends: &api-depends
     condition: service_started
 
 services:
+  # Single public entry point (config/nginx/templates/). Everything else stays
+  # on the internal compose network; nginx is the only service publishing
+  # host ports:
+  #   ${NGINX_HTTP_PORT:-80}  -> ui:3000
+  #   ${NGINX_API_PORT:-9393} -> api:9393 (the API keeps its historical port
+  #                              so existing API_URL values keep working)
+  # No depends_on on purpose: a partial stack ('./ontoportal start api')
+  # still gets its proxy, requests for the missing half answer 502.
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: nginx-service
+    restart: unless-stopped
+    ports:
+      - "${NGINX_HTTP_PORT:-80}:80"
+      - "${NGINX_API_PORT:-9393}:9393"
+    environment:
+      # Substituted into config/nginx/templates/*.template by the image
+      # entrypoint at startup
+      NGINX_MAX_BODY_SIZE: ${NGINX_MAX_BODY_SIZE:-512m}
+      NGINX_PROXY_READ_TIMEOUT: ${NGINX_PROXY_READ_TIMEOUT:-300s}
+    volumes:
+      - ./config/nginx/templates:/etc/nginx/templates:ro
+    healthcheck:
+      # /healthz is answered by nginx itself, not proxied (the image has
+      # busybox wget, no curl)
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1/healthz || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
   api:
     image: ${IMAGE_REPOSITORY:-agroportal}/ontologies_api:v3.5
     container_name: api-service
+    restart: unless-stopped
     env_file: .env
     environment: *api-env
+    # unicorn relies on a buffering reverse proxy for slow-client protection;
+    # it is reachable only through nginx (no published ports)
     command: ["bash", "-c", "rm -f tmp/pids/unicorn.pid && (bundle check || bundle install) && bundle exec unicorn -c config/unicorn.rb -E production -l 9393"]
-    ports:
-      - "9393:9393"
     volumes:
       - repository:/srv/ontoportal/data/repository
     depends_on:
@@ -59,6 +90,7 @@ services:
 
   ncbo_cron:
     image: ${IMAGE_REPOSITORY:-agroportal}/ncbo_cron:v3.5
+    restart: unless-stopped
     env_file: .env
     environment: *api-env
     command: ["bundle", "exec", "bin/ncbo_cron"]
@@ -71,6 +103,7 @@ services:
 
   redis:
     image: redis
+    restart: unless-stopped
     command: ["redis-server", "--save", "", "--appendonly", "no"]
     healthcheck:
       test: redis-cli ping
@@ -80,6 +113,7 @@ services:
 
   solr:
     image: solr:8
+    restart: unless-stopped
     command: bin/solr start -cloud -f
     volumes:
       - solr_data:/var/solr/data
@@ -91,10 +125,12 @@ services:
 
   mgrep:
     image: ontoportal/mgrep-ncbo:0.1
+    restart: unless-stopped
 
   virtuoso:
     image: tenforce/virtuoso:virtuoso7.2.5
     platform: linux/amd64
+    restart: unless-stopped
     environment:
       SPARQL_UPDATE: "true"
     volumes:
@@ -110,6 +146,7 @@ services:
   ui:
     image: ${IMAGE_REPOSITORY:-agroportal}/ontoportal_web_ui:v3.5.1
     container_name: ui-service
+    restart: unless-stopped
     env_file: .env
     environment:
       RAILS_ENV: production
@@ -119,10 +156,9 @@ services:
     # The image ships its gems and precompiled assets. config/puma.rb binds a
     # unix socket in production and redirects its output to log files, so the
     # TCP bind is forced on the command line and the directories that the puma
-    # config expects (socket, pidfile, logs) are created first.
+    # config expects (socket, pidfile, logs) are created first. Puma is
+    # reachable only through nginx (no published ports).
     command: ["bash", "-c", "(bundle check || bundle install) && bin/rails db:prepare && mkdir -p log tmp/pids /opt/ontoportal/bioportal_web_ui/shared/tmp/sockets && exec bundle exec puma -C config/puma.rb -b tcp://0.0.0.0:3000"]
-    ports:
-      - "3000:3000"
     depends_on:
       db:
         condition: service_healthy
@@ -131,6 +167,7 @@ services:
 
   db:
     image: mysql:8.0
+    restart: unless-stopped
     environment:
       MYSQL_ROOT_PASSWORD: root
     volumes:
@@ -146,6 +183,7 @@ services:
 
   cache:
     image: memcached:latest
+    restart: unless-stopped
     command: ["-m", "1024"]
 
 volumes:

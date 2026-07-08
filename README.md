@@ -11,7 +11,7 @@ With this project, you can quickly spin up a fully functional ontoPortal instanc
 
 ## Project architecture
 - **bin**: directory contains essential scripts for deploying and running various components of the ontoPortal system
-- **config**: contains deploy.yml file which contains settings and parameters required for deployment using kamal deployment tool
+- **config**: contains deploy.yml file which contains settings and parameters required for deployment using kamal deployment tool, and `config/nginx/` with the reverse-proxy configuration (see below)
 - **test**: testing-related files and scripts using bats testing framework
 - **utils**: utility and additional scripts for various purposes
 - **docker-compose.yml**: the appliance topology (API, UI and all their backing services). This file is owned by this repo; the api/ui repositories keep their own compose files for their development workflows
@@ -71,6 +71,13 @@ With this project, you can quickly spin up a fully functional ontoPortal instanc
     ./ontoportal help
     ```
 
+### Reverse proxy (nginx)
+An nginx container is the single public entry point of the appliance; the application servers (puma for the UI, unicorn for the API) are only reachable through it and no longer publish ports themselves:
+- UI: `http://localhost` (host port `NGINX_HTTP_PORT`, default 80)
+- API: `http://localhost:9393` (host port `NGINX_API_PORT`, kept on the API's historical port so existing `API_URL` values and clients keep working)
+
+nginx provides slow-client buffering (required by unicorn), gzip compression, upload size limits (`NGINX_MAX_BODY_SIZE`) and upstream timeouts (`NGINX_PROXY_READ_TIMEOUT`). Its configuration lives in `config/nginx/templates/default.conf.template`; the `${NGINX_*}` placeholders are filled from `.env` at container startup. To serve HTTPS, follow the instructions in `config/nginx/ssl.conf.example`.
+
 ### Additional Notes
 - You can provide your own `.env` file to customize parameters. Place the .env file in the project directory.
 - The service topology (containers, hostnames, volumes) lives in `docker-compose.yml` in this repository; edit that file directly to change it.
@@ -83,6 +90,7 @@ With this project, you can quickly spin up a fully functional ontoPortal instanc
     ```
     - **API Configurations:** contains settings for api service
     - **UI Configurations:** contains settings for ui service
+    - **NGINX Configurations:** published ports and proxy limits of the reverse proxy
     - **Cron Configurations:** contains settings for cron service
     - **Kamal configurations**: for build and deployment of the ontoportal instance:
     ```yml
@@ -96,3 +104,4 @@ With this project, you can quickly spin up a fully functional ontoPortal instanc
 ### Upgrading from an older checkout
 Older versions downloaded the compose files from the api/ui repositories at start time; the topology is now versioned here in `docker-compose.yml`. If you upgraded an existing checkout:
 - Delete your `.env` (or update it: remove `ORGANIZATION_NAME`/`COMPOSE_*_FILE_PATH` and set `IMAGE_REPOSITORY=agroportal`, `IMAGE_TAG=development`), then run `./ontoportal clean -f` once to remove containers and files from the old layout.
+- The UI moved from `http://localhost:3000` to `http://localhost` (port 80): everything is now served through the nginx reverse proxy. The API stays on port 9393, but served by nginx. Update `UI_URL` in an existing `.env` accordingly.

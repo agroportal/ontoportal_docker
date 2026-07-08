@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Services of the API stack in docker-compose.yml
-API_SERVICES="api ncbo_cron redis solr mgrep virtuoso"
+# Services of the API stack in docker-compose.yml (nginx fronts the API on
+# the historical 9393 port; unicorn itself is no longer published)
+API_SERVICES="api ncbo_cron redis solr mgrep virtuoso nginx"
 
 setup() {
   echo "[+] Setup API"
@@ -11,7 +12,7 @@ setup() {
 }
 
 status_ok() {
-  curl -sSf http://$1:9393 >/dev/null 2>&1
+  curl -sSf http://$1:${NGINX_API_PORT:-9393} >/dev/null 2>&1
 }
 
 logs() {
@@ -66,7 +67,7 @@ provision() {
 
 run() {
   echo "[+] Starting the API"
-  if ! docker compose up -d api; then
+  if ! docker compose up -d api nginx; then
     echo "[-] Error starting the API containers. Exiting..."
     exit 1
   fi
@@ -82,7 +83,8 @@ run() {
       echo "Cannot get the IP address of the host machine, localhost will be used"
     fi
   fi
-  source utils/loading_animation.sh "[+] Waiting for the server http://$HOST_IP:9393 to be up..." "http://$HOST_IP:9393" 300
+  local api_port="${NGINX_API_PORT:-9393}"
+  source utils/loading_animation.sh "[+] Waiting for the server http://$HOST_IP:$api_port to be up..." "http://$HOST_IP:$api_port" 300
 
   if status_ok $HOST_IP; then
     echo "[+] API is up and running!"

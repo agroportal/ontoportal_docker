@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Services of the UI stack in docker-compose.yml
-UI_SERVICES="ui db cache"
+# Services of the UI stack in docker-compose.yml (nginx serves the UI on
+# port 80; puma itself is no longer published)
+UI_SERVICES="ui db cache nginx"
 
 setup() {
   echo "[+] Setup UI"
@@ -11,7 +12,7 @@ setup() {
 }
 
 status_ok() {
-  curl -sSf http://$1:3000 >/dev/null 2>&1
+  curl -sSf http://$1:${NGINX_HTTP_PORT:-80} >/dev/null 2>&1
 }
 
 logs() {
@@ -44,7 +45,7 @@ run() {
   fi
 
   echo "[+] Starting the UI"
-  if ! docker compose up -d ui; then
+  if ! docker compose up -d ui nginx; then
     echo "[x] UI containers failed to start"
     exit 1
   fi
@@ -60,7 +61,8 @@ run() {
       echo "Cannot get the IP address of the host machine, localhost will be used"
     fi
   fi
-  source utils/loading_animation.sh "[+] Waiting for the server http://$HOST_IP:3000 to be up..." "http://$HOST_IP:3000" 300
+  local ui_port="${NGINX_HTTP_PORT:-80}"
+  source utils/loading_animation.sh "[+] Waiting for the server http://$HOST_IP:$ui_port to be up..." "http://$HOST_IP:$ui_port" 300
 
   if status_ok $HOST_IP; then
     echo "[+] UI is up and running!"

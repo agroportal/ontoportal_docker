@@ -1,0 +1,45 @@
+# Optional TLS entry point for the appliance. Not loaded by default.
+#
+# To enable:
+#   1. Put your certificate and key on the host, e.g. in ./config/nginx/certs/
+#   2. In docker-compose.yml, nginx service:
+#        - publish port 443:   - "443:443"
+#        - mount the certs:    - ./config/nginx/certs:/etc/nginx/certs:ro
+#   3. Copy this file to config/nginx/templates/ssl.conf.template and adjust
+#      server_name (only *.template files are processed and loaded).
+#   4. Point UI_URL in .env at the https:// URL.
+#
+# X-Forwarded-Proto tells Rails the request was https, so redirects and
+# generated URLs use https.
+
+server {
+    listen 443 ssl;
+    server_name my-ontoportal.example.org;
+
+    ssl_certificate     /etc/nginx/certs/fullchain.pem;
+    ssl_certificate_key /etc/nginx/certs/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+
+    client_max_body_size ${NGINX_MAX_BODY_SIZE};
+
+    location / {
+        set $ui_upstream http://ui:3000;
+        proxy_pass $ui_upstream;
+
+        proxy_http_version 1.1;
+        proxy_set_header Host $http_host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $connection_upgrade;
+
+        proxy_read_timeout ${NGINX_PROXY_READ_TIMEOUT};
+        proxy_redirect off;
+    }
+}
+
+# For a public https API, duplicate this server block with a dedicated
+# server_name (e.g. data.my-ontoportal.example.org) proxying to
+# http://api:9393, mirroring the :9393 server in default.conf.template,
+# and set API_URL in .env to that https:// URL.

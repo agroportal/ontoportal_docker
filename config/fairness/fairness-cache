@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+# Rebuilds the FAIR score cache of the configured portal, the equivalent of
+# upstream's cron/cache_reset.sh.
+#
+# The web service only ever *reads* that file: with cacheEnabled=true it
+# answers from the cache and fails while the cache is missing, and an ontology
+# added after the last run stays absent from it until the next one. So this is
+# run once at provisioning and should then be scheduled (see README).
+#
+#   docker compose run --rm fairness fairness-cache
+set -euo pipefail
+
+cd /usr/local/tomcat/webapps/ROOT/WEB-INF
+
+# Same invocation as cache_reset.sh: the classes and jars of the deployed
+# webapp, with the portal to (re)build passed as an argument. Without one,
+# CacheSaverCMD rebuilds every configured portal.
+exec java -Djava.util.logging.config.file=./classes/logging.properties \
+  -cp "lib/*:./classes/." \
+  fr.lirmm.fairness.assessment.CacheSaverCMD "${SERVER_DEFAULT_PORTAL}"

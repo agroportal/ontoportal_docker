@@ -26,6 +26,16 @@ setup() {
 
   assert_output --partial "[+] UI is up and running!"
 
+  # FAIR scores of the starter ontology, requested the way the UI does it: the
+  # portal parameter it derives from API_URL means nothing to O'FAIRe, and
+  # nginx drops it so the service falls back to the portal the appliance
+  # configures (see the /ofaire location). Also covers the cache, which
+  # provisioning builds and which the service answers from.
+  source .env
+  run curl -s "http://localhost:${NGINX_API_PORT:-9393}/ofaire?portal=${API_URL}&ontologies=${STARTER_ONTOLOGY}&combined"
+  assert_output --partial '"success":true'
+  assert_output --partial '"normalizedScore"'
+
   ./ontoportal stop api
   ./ontoportal stop ui
 

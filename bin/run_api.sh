@@ -2,6 +2,10 @@
 # Services of the API stack in docker-compose.yml (nginx fronts the API on
 # the historical 9393 port; unicorn itself is no longer published)
 API_SERVICES="api ncbo_cron redis solr mgrep virtuoso nginx"
+# Same stack, but built from source (config/fairness/) instead of pulled: kept
+# apart because 'docker compose pull' errors on a service with no published
+# image
+API_BUILD_SERVICES="fairness"
 
 setup() {
   echo "[+] Setup API"
@@ -34,11 +38,15 @@ clean() {
 update() {
   echo "[+] Pulling latest images for the API"
   docker compose pull $API_SERVICES
+  # cached after the first run; FAIRNESS_REF is what invalidates it (use
+  # 'docker compose build --no-cache fairness' to rebuild a moving ref)
+  echo "[+] Building the FAIRness assessment service"
+  docker compose build $API_BUILD_SERVICES
 }
 
 stop() {
   echo "[+] Stopping the API"
-  docker compose stop $API_SERVICES
+  docker compose stop $API_SERVICES $API_BUILD_SERVICES
 }
 
 provision() {
@@ -72,9 +80,33 @@ provision() {
   fi
 }
 
+# The FAIR scores are served from a cache file that the web service only reads:
+# it is built by a separate command, which needs the API up and the ontologies
+# already processed, hence a provisioning step of its own after run().
+provision_fairness() {
+  if [ "$1" == "--no-provision" ]; then
+    echo "[+] Skipping the FAIR score cache generation"
+    return 0
+  fi
+
+  source .env
+
+  if [ "${FAIRNESS_CACHE_ENABLED:-true}" != "true" ]; then
+    echo "[+] FAIR score cache disabled, scores are computed on request"
+    return 0
+  fi
+
+  echo "[+] Generating the FAIR score cache (assesses every ontology of the portal)"
+  if ! docker compose run --rm fairness fairness-cache; then
+    # not fatal: the appliance is up, only the FAIR scores are missing
+    echo "[-] Failed to generate the FAIR score cache. The FAIR scores will be"
+    echo "    empty until 'docker compose run --rm fairness fairness-cache' succeeds."
+  fi
+}
+
 run() {
   echo "[+] Starting the API"
-  if ! docker compose up -d api nginx; then
+  if ! docker compose up -d api nginx fairness; then
     echo "[-] Error starting the API containers. Exiting..."
     exit 1
   fi
@@ -111,6 +143,7 @@ start() {
     echo "[-] Error Running API. Exiting..."
     exit 1
   fi
+  provision_fairness "$1"
 }
 
 usage() {

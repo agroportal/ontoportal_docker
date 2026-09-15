@@ -111,6 +111,49 @@ services:
       - cron_logs:/srv/ontoportal/ncbo_cron/logs
     depends_on: *api-depends
 
+  # O'FAIRe, the FAIRness assessment service (config/fairness/). Read by the UI
+  # through FAIRNESS_URL and published by nginx on :9393/ofaire.
+  #
+  # Built here from github.com/agroportal/fairness because upstream publishes no
+  # image: 'docker compose build fairness' rebuilds it, and FAIRNESS_REF pins
+  # the source. The image: line is what a published image would keep, so the
+  # build: block is the only thing to drop the day one exists.
+  fairness:
+    image: ${IMAGE_REPOSITORY:-agroportal}/fairness:${FAIRNESS_TAG:-local}
+    build:
+      context: ./config/fairness
+      args:
+        FAIRNESS_REF: ${FAIRNESS_REF:-master}
+    container_name: fairness-service
+    restart: unless-stopped
+    environment:
+      # The entrypoint writes these into the portal configuration the webapp
+      # reads from its classpath; SERVER_DEFAULT_PORTAL is the one variable the
+      # Java code reads by itself (it names the configuration to fall back on
+      # when a request carries no portal parameter, which is what nginx
+      # arranges for).
+      SERVER_DEFAULT_PORTAL: ${FAIRNESS_PORTAL:-ontoportal}
+      PORTAL_URL: ${FAIRNESS_API_URL:-http://api:9393}
+      PORTAL_APIKEY: ${API_KEY}
+      PORTAL_ADMIN_APIKEY: ${FAIRNESS_ADMIN_APIKEY:-}
+      CACHE_ENABLED: ${FAIRNESS_CACHE_ENABLED:-true}
+      CACHE_FILE_PATH: /srv/ontoportal/data/fairness/save.json
+      CATALINA_OPTS: ${FAIRNESS_JAVA_OPTS:-}
+    volumes:
+      # the cache the service answers from, written by 'fairness-cache'
+      - fairness_cache:/srv/ontoportal/data/fairness
+    healthcheck:
+      # the image has no curl, and the servlet has no cheap endpoint (any
+      # request evaluates ontologies), so check that Tomcat accepts connections
+      test: ["CMD-SHELL", "bash -c '</dev/tcp/localhost/8080'"]
+      start_period: 20s
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    depends_on:
+      api:
+        condition: service_started
+
   redis:
     image: redis
     restart: unless-stopped
@@ -214,6 +257,7 @@ volumes:
   repository:
   reports:
   mgrep_dictionary:
+  fairness_cache:
   cron_logs:
   solr_data:
   virtuoso_data:

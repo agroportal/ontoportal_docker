@@ -11,7 +11,7 @@ With this project, you can quickly spin up a fully functional ontoPortal instanc
 
 ## Project architecture
 - **bin**: directory contains essential scripts for deploying and running various components of the ontoPortal system
-- **config**: contains deploy.yml file which contains settings and parameters required for deployment using kamal deployment tool, and `config/nginx/` with the reverse-proxy configuration (see below)
+- **config**: contains deploy.yml file which contains settings and parameters required for deployment using kamal deployment tool, `config/nginx/` with the reverse-proxy configuration and `config/fairness/` with the FAIRness assessment service (see below)
 - **test**: testing-related files and scripts using bats testing framework
 - **utils**: utility and additional scripts for various purposes
 - **docker-compose.yml**: the appliance topology (API, UI and all their backing services). This file is owned by this repo; the api/ui repositories keep their own compose files for their development workflows
@@ -77,6 +77,26 @@ An nginx container is the single public entry point of the appliance; the applic
 - API: `http://localhost:9393` (host port `NGINX_API_PORT`, kept on the API's historical port so existing `API_URL` values and clients keep working)
 
 nginx provides slow-client buffering (required by unicorn), gzip compression, upload size limits (`NGINX_MAX_BODY_SIZE`) and upstream timeouts (`NGINX_PROXY_READ_TIMEOUT`). Its configuration lives in `config/nginx/templates/default.conf.template`; the `${NGINX_*}` placeholders are filled from `.env` at container startup. To serve HTTPS, follow the instructions in `config/nginx/ssl.conf.example`.
+
+### FAIRness assessment (O'FAIRe)
+
+[O'FAIRe](https://github.com/agroportal/fairness) scores the ontologies of the appliance against the FAIR principles; the UI shows the result on the ontology pages and on the landscape page. It is a Java web service, so unlike the other services it is *built* rather than pulled: `config/fairness/Dockerfile` compiles the war from source (`FAIRNESS_REF` pins the ref) and deploys it on Tomcat. nginx publishes it next to the API:
+
+```
+http://localhost:9393/ofaire?ontologies=STY
+http://localhost:9393/ofaire?ontologies=STY,AGRO&combined   # + the group scores
+http://localhost:9393/ofaire?ontologies=STY&sync            # ignore the cache
+```
+
+The service does not compute a score per request: with `FAIRNESS_CACHE_ENABLED=true` it answers from a cache file that a separate command builds by assessing every ontology of the portal. `./ontoportal start` builds it once at the end of provisioning; **an ontology added afterwards has no FAIR score until the cache is rebuilt**:
+
+```
+docker compose run --rm fairness fairness-cache
+```
+
+Schedule that command (a nightly cron on the host is what AgroPortal does) to keep the scores current. Setting `FAIRNESS_CACHE_ENABLED=false` assesses on every request instead — always fresh, but the UI gives up after 30 s, which a whole-portal request will exceed as soon as the portal grows.
+
+The remaining knobs are in `.env`: `FAIRNESS_DISABLED` (hides the feature in the UI), `FAIRNESS_URL` (where the UI reads the scores — set it to the *public* URL in a public deployment), `FAIRNESS_PORTAL`, `FAIRNESS_API_URL`, `FAIRNESS_ADMIN_APIKEY` (an admin apikey also assesses the private ontologies) and `FAIRNESS_JAVA_OPTS`.
 
 ### Additional Notes
 - You can provide your own `.env` file to customize parameters. Place the .env file in the project directory.

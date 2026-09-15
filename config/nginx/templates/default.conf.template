@@ -21,6 +21,13 @@ map $http_upgrade $connection_upgrade {
     ''      close;
 }
 
+# The query string of an O'FAIRe request, minus its portal parameter (see the
+# /ofaire location for why it is dropped).
+map $args $fairness_args {
+    "~^(?<before>.*&)?portal=[^&]*&?(?<after>.*)$"  "$before$after";
+    default                                         $args;
+}
+
 server_tokens off;
 
 gzip on;
@@ -70,6 +77,43 @@ server {
     server_name _;
 
     client_max_body_size ${NGINX_MAX_BODY_SIZE};
+
+    # O'FAIRe (fairness assessment). It is served next to the API rather than
+    # next to the UI because that is where its callers expect it (upstream
+    # publishes it as services.<portal>/ofaire) and because everything it reads
+    # comes from the API.
+    #
+    # The portal parameter is dropped on the way in. The UI derives it from
+    # API_URL ($HOSTNAME.split('.')[0], bioportal_config_env.rb), which gives
+    # 'agroportal' for https://data.agroportal.lirmm.fr but garbage for the
+    # appliance's API_URL (http://api-service:9393) -- and O'FAIRe fails with
+    # "portal configuration file not found" on an unknown portal instead of
+    # falling back to its default. Without the parameter it uses the portal
+    # named by SERVER_DEFAULT_PORTAL (FAIRNESS_PORTAL in .env), which is the
+    # only one this appliance configures. Requests that carry their own url=
+    # and apikey= (assessing a remote repository) are untouched: O'FAIRe
+    # resolves those before it ever looks at portal.
+    location /ofaire {
+        # both set directives have to come before the rewrite: 'break' ends the
+        # rewrite module for this location, and a set that follows it never runs
+        set $args $fairness_args;
+        set $fairness_upstream http://fairness:8080;
+        # the webapp is deployed at the root of its Tomcat, so drop the prefix
+        rewrite ^/ofaire/?(.*)$ /$1 break;
+
+        proxy_pass $fairness_upstream;
+
+        proxy_http_version 1.1;
+        proxy_set_header Host $http_host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        # a request that misses the cache (&sync, or an ontology added since
+        # the last cache build) runs the whole assessment inline
+        proxy_read_timeout ${NGINX_PROXY_READ_TIMEOUT};
+        proxy_redirect off;
+    }
 
     location / {
         set $api_upstream http://api:9393;

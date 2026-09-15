@@ -51,12 +51,11 @@ provision() {
         "bin/run_cron.sh 'bundle exec rake user:adminify[admin]'"
         "bin/run_cron.sh 'bundle exec bin/ncbo_ontology_import --admin-user admin --ontologies $STARTER_ONTOLOGY --from-apikey $OP_APIKEY --from $OP_API_URL'"
         "bin/run_cron.sh 'bundle exec bin/ncbo_ontology_process -o ${STARTER_ONTOLOGY}'"
-        # annotator term cache (redis) + mgrep dictionary (-d) on the shared
-        # volume; the ncbo_annotator gem expects its Lemmatizer.jar under the
-        # working directory (lib/Lemmatizer), hence the symlink. \\\$ survives
-        # the two evals (here and in run_cron.sh) so 'bundle info' runs in the
-        # container, not on the host.
-        "bin/run_cron.sh 'ln -sfn \\\$(bundle info ncbo_annotator --path)/lib/Lemmatizer lib/Lemmatizer && bundle exec bin/ncbo_ontology_annotate_generate_cache -o ${STARTER_ONTOLOGY} -d'"
+        # annotator term cache (redis) + mgrep dictionary and its lemmatized
+        # variant (-d) on the shared volume. The lemmatizer these need is put in
+        # place by the ncbo_cron entrypoint (config/ncbo_cron/entrypoint.sh),
+        # which is why the step above can already lemmatize too.
+        "bin/run_cron.sh 'bundle exec bin/ncbo_ontology_annotate_generate_cache -o ${STARTER_ONTOLOGY} -d'"
         # mgrep only loads the dictionary at startup
         "docker compose restart mgrep"
     )

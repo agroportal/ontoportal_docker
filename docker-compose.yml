@@ -97,8 +97,14 @@ services:
     restart: unless-stopped
     env_file: .env
     environment: *api-env
+    # Links the lemmatizer of the ncbo_annotator gem into the working directory
+    # (config/ncbo_cron/entrypoint.sh). It has to be the entrypoint and not the
+    # command: every annotator step -- ncbo_ontology_process included -- runs in
+    # its own 'docker compose run' container, which overrides the command.
+    entrypoint: ["/usr/local/bin/ncbo_cron-entrypoint.sh"]
     command: ["bundle", "exec", "bin/ncbo_cron"]
     volumes:
+      - ./config/ncbo_cron/entrypoint.sh:/usr/local/bin/ncbo_cron-entrypoint.sh:ro
       - repository:/srv/ontoportal/data/repository
       - reports:/srv/ontoportal/data/reports
       - mgrep_dictionary:/srv/ontoportal/data/mgrep

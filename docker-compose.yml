@@ -6,7 +6,7 @@
 # independent from them.
 #
 # The OntoPortal images (api, cron, ui) are selected with IMAGE_REPOSITORY and
-# IMAGE_TAG in .env (defaults: agroportal / development).
+# API_TAG / NCBO_CRON_TAG / UI_TAG in .env (default: master).
 
 name: ontoportal_docker
 
@@ -77,7 +77,7 @@ services:
       retries: 3
 
   api:
-    image: ${IMAGE_REPOSITORY:-agroportal}/ontologies_api:v3.5
+    image: ${IMAGE_REPOSITORY:-agroportal}/ontologies_api:${API_TAG:-master}
     container_name: api-service
     restart: unless-stopped
     env_file: .env
@@ -93,7 +93,7 @@ services:
         condition: service_started
 
   ncbo_cron:
-    image: ${IMAGE_REPOSITORY:-agroportal}/ncbo_cron:v3.5
+    image: ${IMAGE_REPOSITORY:-agroportal}/ncbo_cron:${NCBO_CRON_TAG:-master}
     restart: unless-stopped
     env_file: .env
     environment: *api-env
@@ -211,7 +211,7 @@ services:
       retries: 3
 
   ui:
-    image: ${IMAGE_REPOSITORY:-agroportal}/ontoportal_web_ui:v3.5.1
+    image: ${IMAGE_REPOSITORY:-agroportal}/ontoportal_web_ui:${UI_TAG:-master}
     container_name: ui-service
     restart: unless-stopped
     env_file: .env

@@ -4,7 +4,7 @@
 API_URL="https://data.bioontology.org"
 STARTER_ONTOLOGY="STY"
 IMAGE_REPOSITORY="agroportal"
-IMAGE_TAG="development"
+IMAGE_TAG="" # empty: keep the per-image tags of .env.sample
 PROVISION=true # Set the default value to true
 
 # Function to display help message
@@ -64,7 +64,13 @@ set_env_var "OP_APIKEY" "$API_KEY"
 set_env_var "OP_API_URL" "$API_URL"
 set_env_var "STARTER_ONTOLOGY" "$STARTER_ONTOLOGY"
 set_env_var "IMAGE_REPOSITORY" "$IMAGE_REPOSITORY"
-set_env_var "IMAGE_TAG" "$IMAGE_TAG"
+
+# -t pins api, cron and ui to the same tag
+if [ -n "$IMAGE_TAG" ]; then
+    set_env_var "API_TAG" "$IMAGE_TAG"
+    set_env_var "NCBO_CRON_TAG" "$IMAGE_TAG"
+    set_env_var "UI_TAG" "$IMAGE_TAG"
+fi
 
 
 if [ "$PROVISION" = false ]; then

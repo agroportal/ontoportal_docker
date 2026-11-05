@@ -71,6 +71,15 @@ With this project, you can quickly spin up a fully functional ontoPortal instanc
     ./ontoportal help
     ```
 
+### Image versions
+The api, cron and ui images run the `master` tag by default. Pin each one in `.env`:
+```
+API_TAG=v3.5
+NCBO_CRON_TAG=v3.5
+UI_TAG=v3.5.1
+```
+`master` moves: a restart keeps the local copy, `./ontoportal update` pulls the latest one.
+
 ### Reverse proxy (nginx)
 An nginx container is the single public entry point of the appliance; the application servers (puma for the UI, unicorn for the API) are only reachable through it and no longer publish ports themselves:
 - UI: `http://localhost` (host port `NGINX_HTTP_PORT`, default 80)
@@ -105,7 +114,7 @@ The remaining knobs are in `.env`: `FAIRNESS_DISABLED` (hides the feature in the
     - **General configuration**: where you can specify:
     ```yml
     IMAGE_REPOSITORY: Docker Hub organization of the OntoPortal images (api, cron, ui)
-    IMAGE_TAG: tag of the OntoPortal images to run
+    API_TAG, NCBO_CRON_TAG, UI_TAG: tag of each OntoPortal image to run (default: master)
     SERVICE: specify the service you want to run (script will handle this)
     ```
     - **API Configurations:** contains settings for api service
@@ -123,5 +132,5 @@ The remaining knobs are in `.env`: `FAIRNESS_DISABLED` (hides the feature in the
 
 ### Upgrading from an older checkout
 Older versions downloaded the compose files from the api/ui repositories at start time; the topology is now versioned here in `docker-compose.yml`. If you upgraded an existing checkout:
-- Delete your `.env` (or update it: remove `ORGANIZATION_NAME`/`COMPOSE_*_FILE_PATH` and set `IMAGE_REPOSITORY=agroportal`, `IMAGE_TAG=development`), then run `./ontoportal clean -f` once to remove containers and files from the old layout.
+- Delete your `.env` (or update it: remove `ORGANIZATION_NAME`/`COMPOSE_*_FILE_PATH` and set `IMAGE_REPOSITORY=agroportal`), then run `./ontoportal clean -f` once to remove containers and files from the old layout.
 - The UI moved from `http://localhost:3000` to `http://localhost` (port 80): everything is now served through the nginx reverse proxy. The API stays on port 9393, but served by nginx. Update `UI_URL` in an existing `.env` accordingly.

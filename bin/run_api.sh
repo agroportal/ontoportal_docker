@@ -57,7 +57,8 @@ provision() {
     commands=(
         "bin/run_cron.sh 'bundle exec rake user:create[admin,admin@nodomain.org,password]'"
         "bin/run_cron.sh 'bundle exec rake user:adminify[admin]'"
-        "bin/run_cron.sh 'bundle exec bin/ncbo_ontology_import --admin-user admin --ontologies $STARTER_ONTOLOGY --from-apikey $OP_APIKEY --from $OP_API_URL'"
+        # copy shipped in data/ontologies/: no remote portal, no apikey
+        "bin/run_cron.sh 'bundle exec bin/ncbo_ontology_load --admin-user admin ${STARTER_ONTOLOGY}'"
         "bin/run_cron.sh 'bundle exec bin/ncbo_ontology_process -o ${STARTER_ONTOLOGY}'"
         # annotator term cache (redis) + mgrep dictionary and its lemmatized
         # variant (-d) on the shared volume. The lemmatizer these need is put in

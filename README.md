@@ -46,6 +46,7 @@ With this project, you can quickly spin up a fully functional ontoPortal instanc
     ./ontoportal start [api|ui] [--no-provision]
     ```
     - `--no-provision`: Start the appliance without any data (an empty appliance).
+    - Provisioning loads `STARTER_ONTOLOGY` (default `STY`) from the copy in `data/ontologies/`, no remote portal involved. Another ontology needs its own `<ACRONYM>.json` (metadata, see `STY.json`) and the file it names.
 
 - **Deploy**
     - build and push image to repository (by default docker hub)

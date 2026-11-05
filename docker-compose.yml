@@ -105,6 +105,9 @@ services:
     command: ["bundle", "exec", "bin/ncbo_cron"]
     volumes:
       - ./config/ncbo_cron/entrypoint.sh:/usr/local/bin/ncbo_cron-entrypoint.sh:ro
+      # provisioning loads the starter ontology from the copy shipped here
+      - ./config/ncbo_cron/ncbo_ontology_load:/srv/ontoportal/ncbo_cron/bin/ncbo_ontology_load:ro
+      - ./data/ontologies:/srv/ontoportal/data/ontologies:ro
       - repository:/srv/ontoportal/data/repository
       - reports:/srv/ontoportal/data/reports
       - mgrep_dictionary:/srv/ontoportal/data/mgrep

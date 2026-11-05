@@ -1,0 +1,97 @@
+#!/usr/bin/env ruby
+
+# Loads an ontology shipped with the appliance (data/ontologies/), the offline
+# counterpart of bin/ncbo_ontology_import: no remote portal, no apikey. The
+# submission stores the file itself (uploadFilePath), not a pullLocation that
+# the pull job would keep fetching.
+#
+#   data/ontologies/STY.json   name, hasOntologyLanguage, file, submission
+#                              attributes (JSON scalars, cast to model types)
+#   data/ontologies/STY.ttl    the file it names
+#
+# Mounted into the ncbo_cron bin/ directory (docker-compose.yml).
+
+# Exit cleanly from an early interrupt
+Signal.trap('INT') { exit 1 }
+
+require 'bundler/setup'
+require 'json'
+require 'optparse'
+require_relative '../lib/ncbo_cron'
+require_relative '../config/config'
+
+# data/ontologies/, as mounted in docker-compose.yml
+ONTOLOGIES_DIR = '/srv/ontoportal/data/ontologies'
+
+def find_user(username)
+  user = LinkedData::Models::User.find(username).first
+  raise "The user #{username} does not exist" if user.nil?
+
+  user.bring_remaining
+end
+
+def find_contact(user)
+  contact = LinkedData::Models::Contact.where(email: user.email).first
+  return contact if contact
+
+  LinkedData::Models::Contact.new(name: user.username, email: user.email).save
+end
+
+def create_ontology(acronym, name, user)
+  ontology = LinkedData::Models::Ontology.new(acronym: acronym, name: name, administeredBy: [user])
+  raise "Invalid ontology #{acronym}: #{ontology.errors}" unless ontology.valid?
+
+  ontology.save
+end
+
+# JSON value to the type the model enforces, e.g. "2025-11-03" => DateTime
+def cast(submission, key, value)
+  enforce = submission.class.attribute_settings(key.to_sym)&.dig(:enforce) || []
+  return Array(value).map { |v| cast_scalar(enforce, v) } if enforce.include?(:list)
+
+  cast_scalar(enforce, value)
+end
+
+def cast_scalar(enforce, value)
+  return DateTime.parse(value) if enforce.include?(:date_time)
+  return RDF::URI.new(value) if enforce.include?(:uri)
+
+  value
+end
+
+def create_submission(ontology, metadata, user)
+  submission_id = ontology.next_submission_id
+  source = File.join(ONTOLOGIES_DIR, metadata['file'])
+
+  submission = LinkedData::Models::OntologySubmission.new(
+    ontology: ontology,
+    submissionId: submission_id,
+    contact: [find_contact(user)],
+    hasOntologyLanguage: LinkedData::Models::OntologyFormat.where(acronym: metadata['hasOntologyLanguage']).first,
+    uploadFilePath: LinkedData::Models::OntologySubmission.copy_file_repository(ontology.acronym, submission_id, source)
+  )
+  metadata['submission'].each do |key, value|
+    submission.send("#{key}=", cast(submission, key, value))
+  end
+  raise "Invalid submission of #{ontology.acronym}: #{submission.errors}" unless submission.valid?
+
+  submission.save
+end
+
+username = nil
+opt_parser = OptionParser.new do |opts|
+  opts.banner = 'Usage: ncbo_ontology_load --admin-user USERNAME ACRONYM'
+  opts.on('--admin-user USERNAME', 'The admin user that submits the ontology') do |user|
+    username = user
+  end
+end
+opt_parser.parse!
+
+acronym = ARGV.first
+abort(opt_parser.help) if username.nil? || acronym.nil?
+
+metadata = JSON.parse(File.read(File.join(ONTOLOGIES_DIR, "#{acronym}.json")))
+user = find_user(username)
+ontology = LinkedData::Models::Ontology.find(acronym).first || create_ontology(acronym, metadata['name'], user)
+create_submission(ontology, metadata, user)
+puts "#{acronym} loaded from #{metadata['file']}"

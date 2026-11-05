@@ -1,0 +1,22 @@
+{
+  "name": "Semantic Types Ontology",
+  "hasOntologyLanguage": "UMLS",
+  "file": "STY.ttl",
+  "submission": {
+    "version": "2025AB",
+    "status": "production",
+    "released": "2025-11-03T00:00:00.000+00:00",
+    "description": "UMLS Semantic Network\nThe Semantic Network consists of (1) a set of broad subject categories, or Semantic Types, that provide a consistent categorization of all concepts represented in the UMLS Metathesaurus, and (2) a set of useful and important relationships, or Semantic Relations, that exist between Semantic Types. This section of the documentation provides an overview of the Semantic Network, and describes the files of the Semantic Network. Sample records illustrate structure and content of these files.\n\nThe Semantic Network is distributed as one of the UMLS Knowledge Sources and as an open source resource available on the Semantic Network Web site, subject to these terms and conditions.",
+    "homepage": "https://semanticnetwork.nlm.nih.gov/",
+    "documentation": "https://www.nlm.nih.gov/",
+    "URI": "http://purl.bioontology.org/ontology/STY",
+    "hasOntologySyntax": "http://www.w3.org/ns/formats/Turtle",
+    "prefLabelProperty": "http://www.w3.org/2004/02/skos/core#prefLabel",
+    "definitionProperty": "http://www.w3.org/2004/02/skos/core#definition",
+    "synonymProperty": "http://www.w3.org/2004/02/skos/core#altLabel",
+    "authorProperty": "http://purl.org/dc/elements/1.1/creator",
+    "obsoleteProperty": "http://www.w3.org/2002/07/owl#deprecated",
+    "createdProperty": "http://purl.org/dc/elements/1.1/created",
+    "modifiedProperty": "http://purl.org/dc/elements/1.1/modified"
+  }
+}

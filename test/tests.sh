@@ -10,8 +10,14 @@ setup() {
 @test "Running and Stopping API" {
    ./ontoportal clean -f
 
-  run ./ontoportal start api 
+  run ./ontoportal start api
   assert_output --partial "[+] API is up and running!"
+
+  # The starter ontology comes from the copy in data/ontologies/: a submission
+  # pulled from a remote portal would carry its download URL (and apikey).
+  source .env
+  run curl -s "http://localhost:${NGINX_API_PORT:-9393}/ontologies/${STARTER_ONTOLOGY}/latest_submission?display=pullLocation"
+  assert_output --partial '"pullLocation":null'
 
   ./ontoportal stop api
   run docker compose ps

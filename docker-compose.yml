@@ -87,6 +87,9 @@ services:
     command: ["bash", "-c", "rm -f tmp/pids/unicorn.pid && (bundle check || bundle install) && bundle exec unicorn -c config/unicorn.rb -E production -l 9393"]
     volumes:
       - repository:/srv/ontoportal/data/repository
+      # REPORT_PATH: ncbo_cron updates the report as it processes ontologies,
+      # the admin page reads and refreshes it through the API
+      - reports:/srv/ontoportal/data/reports
     depends_on:
       <<: *api-depends
       ncbo_cron:

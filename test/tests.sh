@@ -7,6 +7,22 @@ setup() {
     PATH="$DIR/../src:$PATH"
 }
 
+# Poll a refresh started by POST /admin/ontologies_report until it leaves the
+# "processing" state, then print the API's answer: the report, or
+# {"errors":[...]}
+wait_report() {
+  local url="http://localhost:${NGINX_API_PORT:-9393}/admin/ontologies_report/$1"
+  local answer='"processing"'
+  local deadline=$((SECONDS + 120))
+
+  while [[ "$answer" == '"processing"' ]] && (( SECONDS < deadline )); do
+    sleep 2
+    answer=$(curl -s "$url")
+  done
+
+  echo "$answer"
+}
+
 @test "Running and Stopping API" {
    ./ontoportal clean -f
 
@@ -18,6 +34,13 @@ setup() {
   source .env
   run curl -s "http://localhost:${NGINX_API_PORT:-9393}/ontologies/${STARTER_ONTOLOGY}/latest_submission?display=pullLocation"
   assert_output --partial '"pullLocation":null'
+
+  # The admin page's "Refresh report": the API rewrites the ontologies report
+  # (REPORT_PATH) in a forked process that the page polls
+  run curl -s -X POST "http://localhost:${NGINX_API_PORT:-9393}/admin/ontologies_report"
+  assert_output --partial '"process_id"'
+  run wait_report "$(echo "$output" | sed -n 's/.*"process_id":"\([^"]*\)".*/\1/p')"
+  assert_output --partial '"report_date_generated":"'
 
   ./ontoportal stop api
   run docker compose ps
